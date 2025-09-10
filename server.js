@@ -28,7 +28,7 @@ app.use(session({
     }
 }));
 
-app.use(express.static(path.join(__dirname, IS_VERCEL ? '..' : '')));
+app.use(express.static(path.join(__dirname, IS_VERCEL ? '../public' : 'public')));
 
 // 确保数据目录存在
 async function ensureDataDir() {
