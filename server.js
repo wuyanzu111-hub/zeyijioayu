@@ -7,7 +7,8 @@ const cookieParser = require('cookie-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_DIR = path.join(__dirname, 'data');
+const IS_VERCEL = process.env.VERCEL === '1';
+const DATA_DIR = IS_VERCEL ? path.join('/tmp', 'data') : path.join(__dirname, 'data');
 
 // 中间件
 app.use(cors({
@@ -61,6 +62,28 @@ async function writeJsonFile(filename, data) {
 // 初始化默认数据
 async function initializeData() {
     await ensureDataDir();
+
+    // In a serverless environment like Vercel, the filesystem is read-only, except for the /tmp directory.
+    // On the first invocation, we copy our seed data from the read-only project directory
+    // to the writable /tmp directory.
+    if (IS_VERCEL) {
+        const sourceDataDir = path.join(__dirname, 'data');
+        try {
+            const filesInSource = await fs.readdir(sourceDataDir);
+            const filesInDest = await fs.readdir(DATA_DIR).catch(() => []); // Ignore error if /tmp/data doesn't exist yet
+            
+            for (const file of filesInSource) {
+                if (!filesInDest.includes(file)) {
+                    const sourcePath = path.join(sourceDataDir, file);
+                    const destPath = path.join(DATA_DIR, file);
+                    await fs.copyFile(sourcePath, destPath);
+                }
+            }
+        } catch (error) {
+            // This might happen if the 'data' directory doesn't exist, which is fine.
+            console.log("No source 'data' directory found to copy, proceeding with initialization.");
+        }
+    }
     
     // 初始化用户数据
     const users = await readJsonFile('users.json');
