@@ -27,6 +27,8 @@ app.use(session({
     }
 }));
 
+app.use(express.static(path.join(__dirname)));
+
 // 确保数据目录存在
 async function ensureDataDir() {
     try {
