@@ -26,7 +26,6 @@ app.use(session({
         maxAge: 24 * 60 * 60 * 1000 // 24小时
     }
 }));
-app.use(express.static('.'));
 
 // 确保数据目录存在
 async function ensureDataDir() {
@@ -151,85 +150,80 @@ app.get('/api/users', requireAuth, async (req, res) => {
         const users = await readJsonFile('users.json');
         res.json(users);
     } catch (error) {
+        console.error('获取用户列表失败:', error);
+        res.status(500).json({ message: '服务器内部错误' });
+    }
+});
+
+// 获取用户的完整电话列表（合并分配的和个人的）
+app.get('/api/users/:username/phones', async (req, res) => {
+    const { username } = req.params;
+    try {
+        const [users, allAssignments] = await Promise.all([
+            readData('users'),
+            readData('assignments')
+        ]);
+
+        const user = users.find(u => u.username === username);
+        const assignedPhones = allAssignments[username] || [];
+
+        if (!user) {
+            // 如果用户不存在，但有分配给他的号码，则只返回分配的号码
+            return res.json({ phones: [...new Set(assignedPhones)] });
+        }
+
+        const userPhones = user.phones || [];
+        const mergedPhones = [...new Set([...assignedPhones, ...userPhones])];
+        
+        res.json({ phones: mergedPhones });
+
+    } catch (error) {
+        console.error('获取用户电话时出错:', error);
+        res.status(500).json({ message: '服务器内部错误' });
+    }
+});
+
+// 排序用户的电话号码
+app.put('/api/users/:username/phones/sort', async (req, res) => {
+    const { username } = req.params;
+    const { order = 'asc' } = req.body; // 默认为升序
+
+    try {
+        const users = await readData('users');
+        const userIndex = users.findIndex(u => u.username === username);
+
+        if (userIndex === -1) {
+            return res.status(404).json({ message: '用户不存在' });
+        }
+
+        // 确保 phones 数组存在
+        if (!users[userIndex].phones) {
+            users[userIndex].phones = [];
+        }
+
+        // 排序电话号码
+        users[userIndex].phones.sort((a, b) => {
+            const numA = parseInt(a, 10);
+            const numB = parseInt(b, 10);
+            return order === 'asc' ? numA - numB : numB - numA;
+        });
+
+        await writeData('users', users);
+
+        res.json({ message: '电话号码已排序', phones: users[userIndex].phones });
+    } catch (error) {
+        console.error('排序电话号码时出错:', error);
+        res.status(500).json({ message: '服务器内部错误' });
+    }
+});
+
+// 获取所有用户
+app.get('/api/users', async (req, res) => {
+    try {
+        const users = await readJsonFile('users.json');
+        res.json(users);
+    } catch (error) {
         res.status(500).json({ error: '获取用户列表失败' });
-    }
-});
-
-// 更新用户
-app.put('/api/users', requireAuth, async (req, res) => {
-    try {
-        const users = req.body;
-        await writeJsonFile('users.json', users);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: '更新用户失败' });
-    }
-});
-
-// 获取号码池
-app.get('/api/phonePool', requireAuth, async (req, res) => {
-    try {
-        const phonePool = await readJsonFile('phonePool.json');
-        res.json(phonePool || []);
-    } catch (error) {
-        res.status(500).json({ error: '获取号码池失败' });
-    }
-});
-
-// 更新号码池
-app.put('/api/phonePool', requireAuth, async (req, res) => {
-    try {
-        const phonePool = req.body;
-        await writeJsonFile('phonePool.json', phonePool);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: '更新号码池失败' });
-    }
-});
-
-// 获取分配记录
-app.get('/api/assignments', requireAuth, async (req, res) => {
-    try {
-        const assignments = await readJsonFile('assignments.json');
-        res.json(assignments || {});
-    } catch (error) {
-        res.status(500).json({ error: '获取分配记录失败' });
-    }
-});
-
-// 更新分配记录
-app.put('/api/assignments', requireAuth, async (req, res) => {
-    try {
-        const assignments = req.body;
-        await writeJsonFile('assignments.json', assignments);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: '更新分配记录失败' });
-    }
-});
-
-// 获取用户数据（拨号记录等）
-app.get('/api/userData/:username', requireAuth, async (req, res) => {
-    try {
-        const { username } = req.params;
-        const userData = await readJsonFile('userData.json');
-        res.json(userData[username] || { phones: [], totalCalls: 0, lastCallTime: null });
-    } catch (error) {
-        res.status(500).json({ error: '获取用户数据失败' });
-    }
-});
-
-// 更新用户数据
-app.put('/api/userData/:username', requireAuth, async (req, res) => {
-    try {
-        const { username } = req.params;
-        const newData = req.body;
-        const userData = await readJsonFile('userData.json') || {};
-        userData[username] = newData;
-        await writeJsonFile('userData.json', userData);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: '更新用户数据失败' });
     }
 });
 

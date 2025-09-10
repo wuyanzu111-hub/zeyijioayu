@@ -103,15 +103,60 @@ class ApiClient {
 
     // 获取用户数据
     async getUserData(username) {
-        return this.request(`/userData/${username}`);
-    }
+        const userData = await this.request(`/userData/${username}`);
+        const userPhones = await this.request(`/api/users/${username}/phones`);
+        return { ...userData, phones: userPhones.phones };
+    },
 
     // 更新用户数据
-    async updateUserData(username, userData) {
-        return this.request(`/userData/${username}`, {
+    async updateUserData(username, data) {
+        return this.request(`/api/users/${username}`, {
             method: 'PUT',
-            body: JSON.stringify(userData)
+            body: JSON.stringify(data)
         });
+    },
+
+    // 添加单个电话号码
+    async addPhone(username, phone) {
+        return this.request(`/api/users/${username}/phones`, {
+            method: 'POST',
+            body: JSON.stringify({ phone })
+        });
+    },
+
+    // 批量添加电话号码
+    async addPhonesBulk(username, phones) {
+        return this.request(`/api/users/${username}/phones/bulk`, {
+            method: 'POST',
+            body: JSON.stringify({ phones })
+        });
+    },
+
+    // 删除单个电话号码
+    async deletePhone(username, phone) {
+        return this.request(`/api/users/${username}/phones/${phone}`, {
+            method: 'DELETE'
+        });
+    },
+
+    // 清空所有电话号码
+    async clearPhones(username) {
+        return this.request(`/api/users/${username}/phones`, {
+            method: 'DELETE'
+        });
+    },
+
+    // 排序电话号码
+    async sortPhones(username, order = 'asc') {
+        return this.request(`/api/users/${username}/phones/sort`, {
+            method: 'PUT',
+            body: JSON.stringify({ order })
+        });
+    },
+
+    // 获取号码池
+    async getPhonePool() {
+        return this.request('/phonePool');
     }
 
     // 清空所有数据

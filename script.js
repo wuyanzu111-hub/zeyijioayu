@@ -23,7 +23,12 @@ class PhoneDialer {
         this.updateUI();
         
         // 显示欢迎信息
-        this.updateWelcomeText();
+        if (this.currentUser) {
+            const welcomeElement = document.getElementById('welcomeText');
+            if (welcomeElement) {
+                welcomeElement.textContent = `欢迎，${this.currentUser.name}`;
+            }
+        }
     }
 
     // 初始化DOM元素引用
@@ -129,35 +134,22 @@ class PhoneDialer {
             return;
         }
 
-        const lines = input.split('\n').map(line => line.trim()).filter(line => line);
-        const validPhones = [];
-        const invalidPhones = [];
+        const lines = input.split(/\n|\s|,/).map(line => line.trim()).filter(line => line);
+        const phonesToAdd = [...new Set(lines.map(phone => this.cleanPhoneNumber(phone)).filter(phone => this.isValidPhone(phone)))];
 
-        lines.forEach(line => {
-            const phone = this.cleanPhoneNumber(line);
-            if (this.isValidPhone(phone)) {
-                if (!this.phones.includes(phone)) {
-                    validPhones.push(phone);
-                }
-            } else {
-                invalidPhones.push(line);
+        if (phonesToAdd.length > 0) {
+            try {
+                const result = await apiClient.addPhonesBulk(this.currentUser.username, phonesToAdd);
+                this.phones = result.phoneNumbers;
+                this.updateUI();
+                this.phoneInput.value = '';
+                this.showNotification(`成功处理 ${phonesToAdd.length} 个号码`, 'success');
+            } catch (error) {
+                console.error('批量添加号码失败:', error);
+                this.showNotification('批量添加号码失败，请稍后重试', 'error');
             }
-        });
-
-        if (validPhones.length > 0) {
-            this.phones.push(...validPhones);
-            this.sortPhones();
-            this.phoneInput.value = '';
-            await this.saveData();
-            this.updateUI();
-            
-            let message = `成功添加 ${validPhones.length} 个号码`;
-            if (invalidPhones.length > 0) {
-                message += `，${invalidPhones.length} 个号码格式无效`;
-            }
-            this.showNotification(message, 'success');
         } else {
-            this.showNotification('没有有效的电话号码', 'error');
+            this.showNotification('未找到有效的电话号码', 'warning');
         }
     }
 
@@ -218,13 +210,17 @@ class PhoneDialer {
 
     // 排序电话号码
     async sortPhones() {
-        this.phones.sort((a, b) => {
-            // 按数字大小排序
-            return parseInt(a) - parseInt(b);
-        });
-        await this.saveData();
-        this.updateUI();
-        this.showNotification('号码已重新排序', 'info');
+        try {
+            const currentOrder = this.sortBtn.dataset.order === 'asc' ? 'desc' : 'asc';
+            const result = await apiClient.sortPhones(this.currentUser.username, currentOrder);
+            this.phones = result.phones;
+            this.sortBtn.dataset.order = currentOrder;
+            this.updateUI();
+            this.showNotification(`号码已按${currentOrder === 'asc' ? '升序' : '降序'}重新排序`, 'info');
+        } catch (error) {
+            console.error('排序号码失败:', error);
+            this.showNotification('排序号码失败', 'error');
+        }
     }
 
     // 清空所有号码
@@ -235,200 +231,14 @@ class PhoneDialer {
         }
 
         if (confirm(`确定要清空所有 ${this.phones.length} 个号码吗？`)) {
-            this.phones = [];
-            await this.saveData();
-            this.updateUI();
-            this.showNotification('已清空所有号码', 'success');
-        }
-    }
-
-    // 显示拨打确认对话框
-    showCallConfirm(phone) {
-        this.confirmPhone.textContent = phone;
-        this.confirmModal.classList.add('show');
-        this.currentCallPhone = phone;
-    }
-
-    // 隐藏模态框
-    hideModal() {
-        this.confirmModal.classList.remove('show');
-        this.currentCallPhone = null;
-    }
-
-    // 执行拨打电话
-    executeCall() {
-        if (!this.currentCallPhone) return;
-
-        const phone = this.currentCallPhone;
-        this.hideModal();
-
-        // 显示拨打状态
-        const phoneItem = document.querySelector(`[data-phone="${phone}"]`);
-        if (phoneItem) {
-            phoneItem.classList.add('calling');
-        }
-
-        // 模拟拨打延迟
-        setTimeout(() => {
-            // 尝试拨打电话
-            const telUrl = `tel:${phone}`;
-            
-            // 创建隐藏的链接并点击
-            const link = document.createElement('a');
-            link.href = telUrl;
-            link.style.display = 'none';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            // 更新统计
-            this.totalCalls++;
-            this.lastCallTime = new Date();
-
-            // 从列表中移除号码
-this.removePhone(phone).catch(console.error);
-
-            this.showNotification(`已拨打 ${phone}`, 'success');
-        }, 1000);
-    }
-
-    // 直接拨打（点击号码）
-    callPhone(phone) {
-        this.showCallConfirm(phone);
-    }
-
-    // 移除单个号码
-    async removePhone(phone) {
-        const index = this.phones.indexOf(phone);
-        if (index > -1) {
-            this.phones.splice(index, 1);
-            await this.saveData();
-            this.updateUI();
-        }
-    }
-
-    // 删除号码（带确认）
-    async deletePhone(phone) {
-        if (confirm(`确定要删除号码 ${phone} 吗？`)) {
-            await this.removePhone(phone);
-            this.showNotification(`已删除号码 ${phone}`, 'info');
-        }
-    }
-
-    // 更新UI显示
-    updateUI() {
-        this.updatePhoneList();
-        this.updateStats();
-    }
-
-    // 更新电话号码列表
-    updatePhoneList() {
-        // 更新计数
-        this.phoneCount.textContent = this.phones.length;
-
-        // 显示/隐藏空状态
-        if (this.phones.length === 0) {
-            this.emptyState.style.display = 'flex';
-            this.phoneList.style.display = 'none';
-        } else {
-            this.emptyState.style.display = 'none';
-            this.phoneList.style.display = 'flex';
-        }
-
-        // 清空并重建列表
-        this.phoneList.innerHTML = '';
-
-        this.phones.forEach((phone, index) => {
-            const li = document.createElement('li');
-            li.className = 'phone-item';
-            li.setAttribute('data-phone', phone);
-            
-            li.innerHTML = `
-                <div class="phone-number">
-                    <i class="fas fa-phone"></i>
-                    ${phone}
-                </div>
-                <div class="phone-actions">
-                    <button class="action-btn call-btn" onclick="phoneDialer.callPhone('${phone}')">
-                        <i class="fas fa-phone"></i> 拨打
-                    </button>
-                    <button class="action-btn delete-btn" onclick="phoneDialer.deletePhone('${phone}').catch(console.error)">
-                        <i class="fas fa-trash"></i> 删除
-                    </button>
-                </div>
-            `;
-
-            // 点击号码直接拨打
-            li.addEventListener('click', (e) => {
-                if (!e.target.closest('.phone-actions')) {
-                    this.callPhone(phone);
-                }
-            });
-
-            this.phoneList.appendChild(li);
-        });
-    }
-
-    // 更新统计信息
-    updateStats() {
-        this.totalCallsEl.textContent = this.totalCalls;
-        this.remainingCountEl.textContent = this.phones.length;
-        
-        if (this.lastCallTime) {
-            this.lastCallTimeEl.textContent = this.lastCallTime.toLocaleTimeString('zh-CN', {
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        } else {
-            this.lastCallTimeEl.textContent = '--:--';
-        }
-    }
-
-    // 显示通知
-    showNotification(message, type = 'info') {
-        this.notification.textContent = message;
-        this.notification.className = `notification ${type}`;
-        this.notification.classList.add('show');
-
-        setTimeout(() => {
-            this.notification.classList.remove('show');
-        }, 3000);
-    }
-
-    // 键盘快捷键处理
-    handleKeyboard(e) {
-        // ESC 关闭模态框
-        if (e.key === 'Escape') {
-            this.hideModal();
-        }
-        
-        // Ctrl+S 排序
-        if (e.key === 's' && e.ctrlKey) {
-            e.preventDefault();
-            this.sortPhones().catch(console.error);
-        }
-        
-        // Ctrl+D 清空
-        if (e.key === 'd' && e.ctrlKey) {
-            e.preventDefault();
-            this.clearAllPhones().catch(console.error);
-        }
-    }
-
-    // 保存数据到服务器
-    async saveData() {
-        const data = {
-            phones: this.phones,
-            totalCalls: this.totalCalls,
-            lastCallTime: this.lastCallTime
-        };
-        
-        if (this.currentUser) {
             try {
-                await apiClient.updateUserData(this.currentUser.username, data);
+                await apiClient.clearPhones(this.currentUser.username);
+                this.phones = [];
+                this.updateUI();
+                this.showNotification('已清空所有号码', 'success');
             } catch (error) {
-                console.error('保存数据失败:', error);
-                this.showNotification('保存数据失败，请重试', 'error');
+                console.error('清空号码失败:', error);
+                this.showNotification('清空号码失败', 'error');
             }
         }
     }
@@ -438,17 +248,8 @@ this.removePhone(phone).catch(console.error);
         if (!this.currentUser) return;
 
         try {
-            // 并行获取用户数据和分配记录
-            const [userData, allAssignments] = await Promise.all([
-                apiClient.getUserData(this.currentUser.username),
-                apiClient.getAssignments()
-            ]);
-
-            const assignedPhones = allAssignments[this.currentUser.username] || [];
-            const userPhones = userData.phones || [];
-
-            // 合并并去重
-            this.phones = [...new Set([...assignedPhones, ...userPhones])];
+            const userData = await apiClient.getUserData(this.currentUser.username);
+            this.phones = userData.phones || [];
             this.totalCalls = userData.totalCalls || 0;
             this.lastCallTime = userData.lastCallTime ? new Date(userData.lastCallTime) : null;
             
@@ -460,39 +261,6 @@ this.removePhone(phone).catch(console.error);
             this.totalCalls = 0;
             this.lastCallTime = null;
         }
-    }
-
-    // 更新欢迎文本
-    updateWelcomeText() {
-        if (this.currentUser) {
-            const welcomeElement = document.getElementById('welcomeText');
-            if (welcomeElement) {
-                welcomeElement.textContent = `欢迎，${this.currentUser.name}`;
-            }
-        }
-    }
-
-    // 导出数据
-    exportData() {
-        if (this.phones.length === 0) {
-            this.showNotification('没有数据可导出', 'error');
-            return;
-        }
-
-        const content = this.phones.join('\n');
-        const blob = new Blob([content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `电话号码_${new Date().toISOString().split('T')[0]}.txt`;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        URL.revokeObjectURL(url);
-        this.showNotification('数据已导出', 'success');
     }
 
     // 启动相机
@@ -552,39 +320,23 @@ this.removePhone(phone).catch(console.error);
         this.captureBtn.textContent = '识别中...';
         
         try {
-            // 获取视频尺寸
             const video = this.cameraVideo;
             const canvas = this.cameraCanvas;
             const ctx = canvas.getContext('2d');
             
-            // 设置画布尺寸
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
-            // 绘制当前帧
             ctx.drawImage(video, 0, 0);
             
-            // 转换为图片数据
             const imageData = canvas.toDataURL('image/jpeg', 0.8);
             
-            // 使用OCR识别文字
             const recognizedText = await this.performOCR(imageData);
             
-            // 提取手机号
-            const phoneNumbers = this.extractPhoneNumbers(recognizedText);
-            
-            if (phoneNumbers.length > 0) {
-                // 添加识别到的手机号
-                phoneNumbers.forEach(phone => {
-                    if (!this.phones.includes(phone)) {
-                        this.phones.push(phone);
-                    }
-                });
-                await this.saveData();
-                this.updateUI();
-                this.showNotification(`成功识别到 ${phoneNumbers.length} 个手机号`, 'success');
+            if (recognizedText) {
+                await this.addPhonesFromText(recognizedText);
             } else {
-                this.showNotification('未识别到有效的手机号，请重新拍照', 'warning');
+                this.showNotification('未识别到文本', 'warning');
             }
             
         } catch (error) {
@@ -595,6 +347,7 @@ this.removePhone(phone).catch(console.error);
             this.cameraArea.classList.remove('recognizing');
             this.captureBtn.disabled = false;
             this.captureBtn.textContent = '📸 拍照识别';
+            this.stopCamera();
         }
     }
     
@@ -633,6 +386,25 @@ this.removePhone(phone).catch(console.error);
         return uniquePhones.filter(phone => this.isValidPhone(phone));
     }
     
+    // 从文本中提取并添加电话号码
+    async addPhonesFromText(text) {
+        const phones = this.extractPhoneNumbers(text);
+        if (phones.length === 0) {
+            this.showNotification('未识别到电话号码', 'warning');
+            return;
+        }
+
+        try {
+            const result = await apiClient.addPhonesBulk(this.currentUser.username, phones);
+            this.phones = result.phoneNumbers;
+            this.updateUI();
+            this.showNotification(`成功从文本中添加 ${phones.length} 个号码`, 'success');
+        } catch (error) {
+            console.error('从文本批量添加号码失败:', error);
+            this.showNotification('从文本批量添加号码失败', 'error');
+        }
+    }
+
     // 处理图片上传识别
     async handleImageUpload(event) {
         const file = event.target.files[0];
@@ -660,24 +432,12 @@ this.removePhone(phone).catch(console.error);
             
             // 使用OCR识别文字
             const recognizedText = await this.performOCR(imageData);
-            
-            // 提取手机号
-            const phoneNumbers = this.extractPhoneNumbers(recognizedText);
-            
-            if (phoneNumbers.length > 0) {
-                // 添加识别到的手机号
-                phoneNumbers.forEach(phone => {
-                    if (!this.phones.includes(phone)) {
-                        this.phones.push(phone);
-                    }
-                });
-                await this.saveData();
-                this.updateUI();
-                this.showNotification(`成功从图片中识别到 ${phoneNumbers.length} 个手机号`, 'success');
+
+            if (recognizedText) {
+                await this.addPhonesFromText(recognizedText);
             } else {
-                this.showNotification('图片中未识别到有效的手机号', 'warning');
+                this.showNotification('未能从图片中识别出文本', 'warning');
             }
-            
         } catch (error) {
             console.error('图片识别失败:', error);
             this.showNotification('图片识别失败，请重试', 'error');
@@ -700,25 +460,13 @@ this.removePhone(phone).catch(console.error);
         });
     }
 
-    // 获取统计信息
-    getStats() {
-        return {
-            totalPhones: this.phones.length,
-            totalCalls: this.totalCalls,
-            lastCallTime: this.lastCallTime,
-            averagePhoneLength: this.phones.length > 0 
-                ? (this.phones.reduce((sum, phone) => sum + phone.length, 0) / this.phones.length).toFixed(1)
-                : 0
-        };
-    }
 }
 
 // 初始化应用
-let phoneDialer;
 
 // DOM加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
-    phoneDialer = new PhoneDialer();
+    new PhoneDialer();
     
     // 添加一些示例快捷键提示
     console.log('电话拨号器快捷键:');
@@ -728,12 +476,6 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('ESC: 关闭对话框');
 });
 
-// 防止页面意外关闭时丢失数据
-window.addEventListener('beforeunload', (e) => {
-    if (phoneDialer && phoneDialer.phones.length > 0) {
-        phoneDialer.saveData().catch(console.error);
-    }
-});
 
 // 导出全局函数供HTML调用
 window.phoneDialer = phoneDialer;
