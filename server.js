@@ -28,7 +28,7 @@ app.use(session({
     }
 }));
 
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname, IS_VERCEL ? '..' : '')));
 
 // 确保数据目录存在
 async function ensureDataDir() {
@@ -67,7 +67,7 @@ async function initializeData() {
     // On the first invocation, we copy our seed data from the read-only project directory
     // to the writable /tmp directory.
     if (IS_VERCEL) {
-        const sourceDataDir = path.join(__dirname, 'data');
+        const sourceDataDir = path.join(__dirname, '..', 'data');
         try {
             const filesInSource = await fs.readdir(sourceDataDir);
             const filesInDest = await fs.readdir(DATA_DIR).catch(() => []); // Ignore error if /tmp/data doesn't exist yet
