@@ -1,0 +1,8 @@
+# Netlify重定向配置
+# 将API请求重定向到后端服务器
+
+# 如果有独立的后端服务器，取消注释并修改URL
+# /api/* https://your-backend-server.com/api/:splat 200
+
+# 对于纯前端部署，所有路由都返回index.html（SPA路由）
+/* /index.html 200

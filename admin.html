@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员控制台 - 电话拨号系统</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部导航 -->
+        <header class="header">
+            <div class="header-content">
+                <h1>管理员控制台</h1>
+                <div class="user-info">
+                    <span id="welcomeText">欢迎，管理员</span>
+                    <button onclick="logout()" class="btn btn-outline">退出登录</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主要内容区域 -->
+        <main class="main-content admin-main">
+            <!-- 号码管理区域 -->
+            <div class="admin-section">
+                <div class="section-header">
+                    <h2>号码管理</h2>
+                    <div class="section-actions">
+                        <button id="uploadBtn" class="btn btn-primary">上传号码</button>
+                        <button id="distributeBtn" class="btn btn-secondary">分配号码</button>
+                        <button id="clearAllBtn" class="btn btn-danger">清空所有</button>
+                    </div>
+                </div>
+                
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-content">
+                        <i class="upload-icon">📁</i>
+                        <h3>上传号码文件</h3>
+                        <p>支持文本文件：.txt, .csv</p>
+                        <p>支持图片文件：.jpg, .png, .bmp, .gif</p>
+                        <input type="file" id="phoneFileInput" accept=".txt,.csv,.jpg,.jpeg,.png,.bmp,.gif,.webp" style="display: none;">
+                        <button class="btn btn-outline" onclick="document.getElementById('phoneFileInput').click()">选择文件</button>
+                    </div>
+                </div>
+                
+                <!-- 图片预览区域 -->
+                <div class="image-preview" id="imagePreview" style="display: none;">
+                    <h4>图片预览</h4>
+                    <img id="previewImage" src="" alt="预览图片" style="max-width: 100%; max-height: 300px; border: 1px solid #ddd; border-radius: 4px;">
+                    <div class="preview-actions">
+                        <button type="button" id="confirmOCR" class="btn btn-primary">确认识别</button>
+                        <button type="button" id="cancelPreview" class="btn btn-secondary">取消</button>
+                    </div>
+                </div>
+                
+                <div class="phone-pool">
+                    <h3>号码池 (<span id="totalPhones">0</span> 个号码)</h3>
+                    <div class="phone-pool-content" id="phonePoolContent">
+                        <div class="empty-state">
+                            <i>📞</i>
+                            <p>暂无号码，请先上传号码文件</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 用户管理区域 -->
+            <div class="admin-section">
+                <div class="section-header">
+                    <h2>业务员管理</h2>
+                    <div class="section-actions">
+                        <button id="addUserBtn" class="btn btn-primary">添加用户</button>
+                    </div>
+                </div>
+                
+                <div class="users-list">
+                    <div class="user-item header-row">
+                        <div class="user-name">用户名</div>
+                        <div class="user-role">角色</div>
+                        <div class="user-phones">分配号码</div>
+                        <div class="user-status">状态</div>
+                        <div class="user-actions">操作</div>
+                    </div>
+                    <div id="usersList">
+                        <!-- 用户列表将在这里动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- 统计信息 -->
+        <footer class="stats-footer">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-number" id="totalPhonesCount">0</span>
+                    <span class="stat-label">总号码数</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number" id="distributedCount">0</span>
+                    <span class="stat-label">已分配</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number" id="activeUsersCount">0</span>
+                    <span class="stat-label">活跃用户</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+    
+    <!-- 添加用户模态框 -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content">
+            <h3>添加新用户</h3>
+            <form id="addUserForm">
+                <div class="form-group">
+                    <label for="newUsername">用户名</label>
+                    <input type="text" id="newUsername" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">密码</label>
+                    <input type="password" id="newPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="newUserRole">角色</label>
+                    <select id="newUserRole" required>
+                        <option value="salesperson">业务员</option>
+                        <option value="admin">管理员</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="newUserName">显示名称</label>
+                    <input type="text" id="newUserName" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeAddUserModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="notification" class="notification"></div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="api.js"></script>
+    <script src="auth.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>

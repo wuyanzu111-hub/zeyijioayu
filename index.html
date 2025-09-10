@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电话拨号器 - 业务员工作台</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <div>
+                    <h1>📞 电话拨号器</h1>
+                    <p>业务员工作台</p>
+                </div>
+                <div class="user-info">
+                    <span id="welcomeText">欢迎使用</span>
+                    <button onclick="logout()" class="btn btn-outline">退出登录</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- 上传区域 -->
+            <section class="upload-section">
+                <div class="upload-card">
+                    <h2><i class="fas fa-upload"></i> 添加电话号码</h2>
+                    <div class="upload-methods">
+                        <div class="method-card">
+                            <h3>批量输入</h3>
+                            <textarea 
+                                id="phoneInput" 
+                                placeholder="请输入电话号码，每行一个：&#10;13800138000&#10;13900139000&#10;15012345678"
+                                rows="6"
+                            ></textarea>
+                            <button id="addPhonesBtn" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> 添加号码
+                            </button>
+                        </div>
+                        
+                        <div class="method-card">
+                            <h3>文件上传</h3>
+                            <div class="file-upload-area" id="fileUploadArea">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <p>拖拽文件到此处或点击选择</p>
+                                <input type="file" id="fileInput" accept=".txt,.csv" hidden>
+                            </div>
+                            <button id="uploadFileBtn" class="btn btn-secondary">
+                                <i class="fas fa-file-upload"></i> 选择文件
+                            </button>
+                        </div>
+                        
+                        <div class="method-card">
+                            <h3>拍照识别</h3>
+                            <div class="camera-area" id="cameraArea">
+                                <video id="cameraVideo" autoplay playsinline style="display: none; width: 100%; max-width: 300px; border-radius: 10px;"></video>
+                                <canvas id="cameraCanvas" style="display: none;"></canvas>
+                                <div class="camera-placeholder" id="cameraPlaceholder">
+                                    <i class="fas fa-camera"></i>
+                                    <p>点击开启相机拍照识别手机号</p>
+                                </div>
+                            </div>
+                            <div class="camera-controls" style="margin-top: 15px; display: flex; gap: 10px;">
+                                <button id="startCameraBtn" class="btn btn-secondary">
+                                    <i class="fas fa-camera"></i> 开启相机
+                                </button>
+                                <button id="captureBtn" class="btn btn-primary" style="display: none;">
+                                    <i class="fas fa-camera-retro"></i> 拍照识别
+                                </button>
+                                <button id="stopCameraBtn" class="btn btn-outline" style="display: none;">
+                                    <i class="fas fa-times"></i> 关闭
+                                </button>
+                                <button id="uploadImageBtn" class="btn btn-primary">
+                                    <i class="fas fa-image"></i> 上传图片识别
+                                </button>
+                                <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 号码列表区域 -->
+            <section class="phone-list-section">
+                <div class="list-header">
+                    <h2><i class="fas fa-list"></i> 电话号码列表</h2>
+                    <div class="list-controls">
+                        <span class="phone-count">共 <span id="phoneCount">0</span> 个号码</span>
+                        <div class="control-buttons">
+                            <button id="sortBtn" class="btn btn-outline" title="重新排序">
+                                <i class="fas fa-sort-numeric-down"></i>
+                            </button>
+                            <button id="clearAllBtn" class="btn btn-danger" title="清空所有">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="phone-list-container">
+                    <div id="emptyState" class="empty-state">
+                        <i class="fas fa-phone-slash"></i>
+                        <h3>暂无电话号码</h3>
+                        <p>请在上方添加电话号码开始使用</p>
+                    </div>
+                    
+                    <ul id="phoneList" class="phone-list"></ul>
+                </div>
+            </section>
+        </main>
+
+        <!-- 统计信息 -->
+        <footer class="stats-footer">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <i class="fas fa-phone"></i>
+                    <div>
+                        <span class="stat-number" id="totalCalls">0</span>
+                        <span class="stat-label">已拨打</span>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-list-ol"></i>
+                    <div>
+                        <span class="stat-number" id="remainingCount">0</span>
+                        <span class="stat-label">待拨打</span>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-clock"></i>
+                    <div>
+                        <span class="stat-number" id="lastCallTime">--:--</span>
+                        <span class="stat-label">最后拨打</span>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 确认对话框 -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <h3><i class="fas fa-phone"></i> 确认拨打</h3>
+            <p>确定要拨打 <strong id="confirmPhone"></strong> 吗？</p>
+            <p class="warning">拨打后该号码将从列表中移除</p>
+            <div class="modal-buttons">
+                <button id="confirmCall" class="btn btn-primary">
+                    <i class="fas fa-phone"></i> 确认拨打
+                </button>
+                <button id="cancelCall" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知提示 -->
+    <div id="notification" class="notification"></div>
+
+    <!-- Tesseract.js OCR库 -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <script src="api.js"></script>
+    <script src="auth.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
