@@ -1,171 +1,113 @@
-// API工具类 - 处理与后端服务器的通信
-class ApiClient {
+class API {
     constructor() {
-        this.baseUrl = this.getApiBaseUrl();
+        this.baseUrl = \'\'; // The base URL is the same as the frontend
     }
 
-    // 获取API基础URL
-    getApiBaseUrl() {
-        const hostname = window.location.hostname;
-        const protocol = window.location.protocol;
+    async request(endpoint, options = {}) {
+        const url = this.baseUrl + endpoint;
+        const headers = {
+            \'Content-Type\': \'application/json\',
+            ...options.headers,
+        };
 
-        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.')) {
-            return `${protocol}//${hostname}:3000/api`;
+        const token = localStorage.getItem(\'token\');
+        if (token) {
+            headers[\'Authorization\'] = `Bearer ${token}`;
         }
 
-        if (hostname.includes('netlify.app') || hostname.includes('github.io')) {
-            return '/api';
-        }
+        const config = {
+            ...options,
+            headers,
+        };
 
-        return `${protocol}//${hostname}/api`;
-    }
-
-    // 通用请求方法
-    async request(url, options = {}) {
         try {
-            const response = await fetch(this.baseUrl + url, {
-                credentials: 'include', // 确保跨域请求时携带cookie
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                },
-                ...options
-            });
-
+            const response = await fetch(url, config);
             if (!response.ok) {
-                const errorBody = await response.text();
-                throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorBody}`);
+                const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                throw new Error(errorData.message || \'请求失败\');
             }
-
-            return await response.json();
+            if (response.status === 204) {
+                return null;
+            }
+            return response.json();
         } catch (error) {
-            console.error('API请求失败:', error);
+            console.error(\'API request error:\', error);
             throw error;
         }
     }
 
-    // 用户认证
-    async login(username, password, role) {
-        return this.request('/auth/login', {
-            method: 'POST',
-            body: JSON.stringify({ username, password, role })
+    // Auth
+    login(username, password) {
+        return this.request(\'/api/auth/login\', {
+            method: \'POST\',
+            body: JSON.stringify({ username, password }),
         });
     }
 
-    // 用户登出
-    async logout() {
-        return this.request('/auth/logout', { method: 'POST' });
+    logout() {
+        return this.request(\'/api/auth/logout\', { method: \'POST\' });
     }
 
-    // 检查会话状态
-    async checkSession() {
-        return this.request('/auth/session');
+    // Users
+    getUsers() {
+        return this.request(\'/api/users\');
     }
 
-    // 获取用户列表
-    async getUsers() {
-        return this.request('/users');
-    }
-
-    // 更新用户列表
-    async updateUsers(users) {
-        return this.request('/users', {
-            method: 'PUT',
-            body: JSON.stringify(users)
+    createUser(username, password, role) {
+        return this.request(\'/api/users\', {
+            method: \'POST\',
+            body: JSON.stringify({ username, password, role }),
         });
     }
 
-    // 获取号码池
-    async getPhonePool() {
-        return this.request('/phonePool');
-    }
-
-    // 更新号码池
-    async updatePhonePool(phonePool) {
-        return this.request('/phonePool', {
-            method: 'PUT',
-            body: JSON.stringify(phonePool)
+    updateUser(id, data) {
+        return this.request(`/api/users/${id}`, {
+            method: \'PUT\',
+            body: JSON.stringify(data),
         });
     }
 
-    // 获取分配记录
-    async getAssignments() {
-        return this.request('/assignments');
+    deleteUser(id) {
+        return this.request(`/api/users/${id}`, { method: \'DELETE\' });
     }
 
-    // 更新分配记录
-    async updateAssignments(assignments) {
-        return this.request('/assignments', {
-            method: 'PUT',
-            body: JSON.stringify(assignments)
+    // Phone Pool
+    getPhonePool() {
+        return this.request(\'/api/phone-pool\');
+    }
+
+    addPhoneNumber(phoneNumber) {
+        return this.request(\'/api/phone-pool\', {
+            method: \'POST\',
+            body: JSON.stringify({ phoneNumber }),
         });
     }
 
-    // 获取用户数据
-    async getUserData(username) {
-        const userData = await this.request(`/userData/${username}`);
-        const userPhones = await this.request(`/api/users/${username}/phones`);
-        return { ...userData, phones: userPhones.phones };
-    },
-
-    // 更新用户数据
-    async updateUserData(username, data) {
-        return this.request(`/api/users/${username}`, {
-            method: 'PUT',
-            body: JSON.stringify(data)
+    deletePhoneNumber(phoneNumber) {
+        return this.request(`/api/phone-pool\`, {
+            method: \'DELETE\',
+            body: JSON.stringify({ phoneNumber }),
         });
-    },
-
-    // 添加单个电话号码
-    async addPhone(username, phone) {
-        return this.request(`/api/users/${username}/phones`, {
-            method: 'POST',
-            body: JSON.stringify({ phone })
-        });
-    },
-
-    // 批量添加电话号码
-    async addPhonesBulk(username, phones) {
-        return this.request(`/api/users/${username}/phones/bulk`, {
-            method: 'POST',
-            body: JSON.stringify({ phones })
-        });
-    },
-
-    // 删除单个电话号码
-    async deletePhone(username, phone) {
-        return this.request(`/api/users/${username}/phones/${phone}`, {
-            method: 'DELETE'
-        });
-    },
-
-    // 清空所有电话号码
-    async clearPhones(username) {
-        return this.request(`/api/users/${username}/phones`, {
-            method: 'DELETE'
-        });
-    },
-
-    // 排序电话号码
-    async sortPhones(username, order = 'asc') {
-        return this.request(`/api/users/${username}/phones/sort`, {
-            method: 'PUT',
-            body: JSON.stringify({ order })
-        });
-    },
-
-    // 获取号码池
-    async getPhonePool() {
-        return this.request('/phonePool');
     }
 
-    // 清空所有数据
-    async clearAllData() {
-        return this.request('/data/clear', {
-            method: 'DELETE'
+    // Assignments
+    getAssignments() {
+        return this.request(\'/api/assignments\');
+    }
+
+    assignNumber(userId) {
+        return this.request(\'/api/assignments\', {
+            method: \'POST\',
+            body: JSON.stringify({ userId }),
+        });
+    }
+
+    releaseNumber(userId, phoneNumber) {
+        return this.request(\'/api/assignments/release\', {
+            method: \'POST\',
+            body: JSON.stringify({ userId, phoneNumber }),
         });
     }
 }
 
-// 创建全局API客户端实例
-const apiClient = new ApiClient();
+const api = new API();
